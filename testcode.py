@@ -14,9 +14,7 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import mean_absolute_error
 from numpy import mean
 
-import seaborn as sns
-print(sns.__version__)
-exit(0)
+
 month=[1,7,11]
 date=[1,7,14,21]
 test_path=[]
@@ -52,7 +50,8 @@ for i in range(0, len(actual_path)):
     
     
     # load model and put the data into model
-    model=models.load_model('model/sevenday_nomothod.h5')
+    # model=models.load_model('model/sevenday_nomothod.h5')
+    model=models.load_model('model/sevenday_addnoise.h5')
     pred=model.predict(values)
     pred=pred.astype(np.float32)
     pred=label_pkl.inverse_transform(pred)
