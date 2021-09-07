@@ -50,42 +50,6 @@ def del_data(data,strat,end,feature):
     data=data.drop(data.columns[del_col],axis=1)
     return data
 
-def new_data(data):
-    names = locals()
-  
-    names['top1%s'%i],names['top2%s'%i],names['temp%s'%i],names['hum%s'%i],names['L6B%s'%i],names['CELL%s'%i]=new_random(data)
-    names['totoal_data%s'%i]=vstack((names['top1%s'%i],names['top2%s'%i],names['temp%s'%i],names['hum%s'%i],names['L6B%s'%i],names['CELL%s'%i]))
-    
-    names['totoal_data%s'%i] =  names['totoal_data%s'%i].T
-   
-    names['totoal_data%s'%i] = names['totoal_data%s'%i].astype('float32')
-    timeseries=names['totoal_data%s'%i] #將所有資料統整(原本、生成)
-    return timeseries  
-
-def new_random(input_data):
-    top1,top2,temp,hum,L6B,CELL=[],[],[],[],[],[]    
-    row,col=input_data.shape    
-    for i in range(row):
-        for j in range(col):
-            value=input_data[i][j]
-            if j==0:
-                new_value=value+(random.uniform(0,373))
-                top1.append(new_value)
-            elif j==1:
-                new_value=input_data[i][j]+(random.uniform(-373,0))
-                top2.append(new_value)
-            elif j==2:
-                temp.append(input_data[i][j])
-            elif j==3:
-                hum.append(input_data[i][j])
-            elif j==4:
-                L6B.append(input_data[i][j])
-            elif j==5:
-                CELL.append(input_data[i][j])                
-    return top1,top2,temp,hum,L6B,CELL
-
-
-
 def data_augment(timeseries):
     # shape : (1270, 6)
     timeseries[:, 0:1] += np.random.uniform(0, 373, size=(timeseries.shape[0], 1))
@@ -117,8 +81,7 @@ for i in range(4):
     reframe_2=series_to_supervised(new_timeseries, 14, 7)
     reframe_2=reframe_2.iloc[:,:84]
     new_data.extend(reframe_2.values)
-new_data.extend(reframe.iloc[:,:84].values)
-    
+new_data.extend(reframe.iloc[:,:84].values)    
 new_data = np.array(new_data)
 y_new_answer = np.array(y_new_answer)
 
@@ -136,8 +99,10 @@ new_inputs, new_target = shuffle_sample(new_data, y_new_answer)
 
 from sklearn.preprocessing import MinMaxScaler
 
-train_X=MinMaxScaler(feature_range=(0,1)).fit_transform(new_inputs)
-train_y=MinMaxScaler(feature_range=(0,1)).fit_transform(new_target)
+scaler_X=MinMaxScaler(feature_range=(0,1)).fit(new_inputs)
+train_X = scaler_X.transform(new_inputs)
+scaler_y=MinMaxScaler(feature_range=(0,1)).fit(new_target)
+train_y=scaler_y.transform(new_target)
 
 
 from keras import models
@@ -155,34 +120,64 @@ def make_feedforward_model(inputs,outputs):
     model.add(layers.Dropout(0.2))
     # model.add(layers.Dense(7,activation='relu'))
     model.add(layers.Dense(outputs,activation='linear'))
-    model.compile(loss='mean_absolute_error',optimizer=keras.optimizers.Adam(learning_rate=0.003),metrics=['mae'])
+    model.compile(loss='mean_absolute_error',optimizer=keras.optimizers.Adam(learning_rate=0.003),metrics=['mean_absolute_error'])
     return model
-# model
-model=make_feedforward_model(train_X.shape[1],7)
-model.summary()
-path=("model/sevenday_addnoise.h5").format()
-checkpoint=ModelCheckpoint(path,monitor='mean_absolute_error',verbose=2,save_best_only=True,mode='min')
-callbacklist=[checkpoint]
-history=model.fit(train_X,train_y,epochs=2000,batch_size=24,validation_split=0.05,callbacks=callbacklist)
-model.save(path)
-a=history.history
+# # model
+# model=make_feedforward_model(train_X.shape[1],7)
+# model.summary()
+# path=("model/sevenday_addnoise.h5").format()
+# checkpoint=ModelCheckpoint(path,monitor='mean_absolute_error',verbose=2,save_best_only=True,mode='min')
+# callbacklist=[checkpoint]
+# history=model.fit(train_X,train_y,epochs=2000,batch_size=24,validation_split=0.05,callbacks=callbacklist)
+# model.save(path)
+# a=history.history
 
-loss=a['loss']
-val_loss=a['val_loss']
-mae=a['mae']
-val_mae=a['val_mae']
-epochs=range(1,len(loss)+1)
-plt.plot(epochs,loss,'r',label='training loss')
-plt.plot(epochs,val_loss,'b',label='validation loss')
-plt.xlabel('epochs')
-plt.ylabel('loss')
-plt.legend()
-plt.show()
+# loss=a['loss']
+# val_loss=a['val_loss']
+# mae=a['mae']
+# val_mae=a['val_mae']
+# epochs=range(1,len(loss)+1)
+# plt.plot(epochs,loss,'r',label='training loss')
+# plt.plot(epochs,val_loss,'b',label='validation loss')
+# plt.xlabel('epochs')
+# plt.ylabel('loss')
+# plt.legend()
+# plt.show()
 
-plt.clf()
-plt.plot(epochs,mae,'r',label='mae')
-plt.plot(epochs,val_mae,'b',label='val_mae')
-plt.xlabel('epochs')
-plt.ylabel('mae')
-plt.legend()
-plt.show()
+# plt.clf()
+# plt.plot(epochs,mae,'r',label='mae')
+# plt.plot(epochs,val_mae,'b',label='val_mae')
+# plt.xlabel('epochs')
+# plt.ylabel('mae')
+# plt.legend()
+# plt.show()
+
+
+
+
+# =============================================================================
+# USE XGBOOST Method
+# =============================================================================
+test_data = read_csv('dataset/test-max-1-1.csv')
+test_X=test_data.iloc[:,1:].values
+test_X=test_X.reshape(1,84)
+scalar_xgb=MinMaxScaler(feature_range=(0,1))
+test_X=scalar_xgb.fit_transform(test_X)
+from xgboost import XGBRegressor
+import pickle
+import joblib
+from sklearn.multioutput import MultiOutputRegressor#950
+xgboost_model = MultiOutputRegressor(XGBRegressor(n_estimators=100, learning_rate=0.01,objective='reg:squarederror'
+# ,max_depth=9
+# min_sample_size = 0.8,
+# random_state=0
+)).fit(train_X,train_y)
+joblib.dump(xgboost_model,'model/xgb_model.pkl')
+joblib.dump(scaler_y,'model/scaler_y_noise.pkl')
+joblib.dump(scaler_X,'model/scaler_X_noise.pkl')
+load_model=joblib.load('model/xgb_model.pkl')
+# y_hat=xgboost_model.predict(test_X)
+# y_real = scaler_y.inverse_transform(y_hat)
+# print(y_hat)
+
+
